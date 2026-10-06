@@ -1,3 +1,5 @@
+# Databricks notebook source
+
 from pyspark.sql import functions as F, Window
 
 dbutils.widgets.text("catalog", "dbr_dev_ua5816bd")
@@ -26,6 +28,8 @@ orders = (
 )
 
 # COMMAND ----------
+# MAGIC %md
+# MAGIC ## Customer dimension
 
 # COMMAND ----------
 
@@ -39,26 +43,9 @@ dim_customer = (
 )
 dim_customer.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(f"{gold}.dim_customer")
 
-b = orders.select(F.min(F.to_date("order_ts")).alias("d0"), F.max(F.to_date("order_ts")).alias("d1")).first()
-dim_date = (
-    spark.sql(f"SELECT explode(sequence(to_date('{b.d0}'), to_date('{b.d1}'), interval 1 day)) AS date")
-    .select(
-        F.date_format("date", "yyyyMMdd").cast("int").alias("date_key"),
-        "date",
-        F.year("date").alias("year"),
-        F.month("date").alias("month"),
-        F.dayofmonth("date").alias("day"),
-        F.date_format("date", "EEEE").alias("day_name"),
-        F.dayofweek("date").isin(1, 7).alias("is_weekend"),
-    )
-)
-dim_date.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(f"{gold}.dim_date")
-
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ## Fact table
-# MAGIC Grain: one row per order. `segment` is kept in the fact next to `customer_key`,
-# MAGIC so the row-level security filter does not need a join.
 
 # COMMAND ----------
 
@@ -68,10 +55,9 @@ fact_orders = (
     .select(
         F.col("o.order_id").alias("order_id"),
         F.date_format(F.to_date("o.order_ts"), "yyyyMMdd").cast("int").alias("date_key"),
+        F.hour("o.order_ts").cast("int").alias("time_key"),
         F.col("c.customer_key").alias("customer_key"),
         F.col("c.segment").alias("segment"),
-        F.col("o.order_ts").alias("order_ts"),
-        F.hour("o.order_ts").alias("order_hour"),
         F.col("o.amount").alias("amount"),
     )
 )
@@ -94,7 +80,7 @@ agg_daily = (
 agg_daily.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(f"{gold}.agg_daily_sales")
 
 agg_hourly = (
-    fact.groupBy(F.date_trunc("hour", "order_ts").alias("hour"))
+    fact.groupBy("date_key", "time_key")
     .agg(F.count("*").alias("orders"), F.round(F.sum("amount"), 2).alias("revenue"))
 )
 agg_hourly.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(f"{gold}.agg_hourly_sales")
@@ -111,7 +97,6 @@ agg_customer.write.mode("overwrite").option("overwriteSchema", "true").saveAsTab
 
 comments = {
     "dim_customer": "Dimension: customer with a spend-based segment (premium, standard). customer_name is masked.",
-    "dim_date": "Dimension: calendar day.",
     "fact_orders": "Fact: one row per order. Row filter by segment.",
     "agg_daily_sales": "Aggregation: orders, revenue and average order value per day.",
     "agg_hourly_sales": "Aggregation: orders and revenue per hour.",
@@ -126,15 +111,17 @@ for t, c in comments.items():
 
 # COMMAND ----------
 
-for t in comments:
+for t in list(comments) + ["dim_date", "dim_time"]:
     print(t, spark.table(f"{gold}.{t}").count())
 
 display(spark.sql(f"""
     SELECT sum(CASE WHEN d.date_key     IS NULL THEN 1 ELSE 0 END) AS no_date,
+           sum(CASE WHEN t.time_key     IS NULL THEN 1 ELSE 0 END) AS no_time,
            sum(CASE WHEN c.customer_key IS NULL THEN 1 ELSE 0 END) AS no_customer,
            count(*) AS fact_rows
     FROM {gold}.fact_orders f
     LEFT JOIN {gold}.dim_date     d ON f.date_key     = d.date_key
+    LEFT JOIN {gold}.dim_time     t ON f.time_key     = t.time_key
     LEFT JOIN {gold}.dim_customer c ON f.customer_key = c.customer_key
 """))
 
