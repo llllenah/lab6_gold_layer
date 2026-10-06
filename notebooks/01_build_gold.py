@@ -1,7 +1,3 @@
-# Databricks notebook source
-# Gold layer: star schema (dimensions + fact) and aggregations built on top of the silver
-# orders table from the previous labs. Every table is rebuilt from silver, so reruns are safe.
-
 from pyspark.sql import functions as F, Window
 
 dbutils.widgets.text("catalog", "dbr_dev_ua5816bd")
@@ -17,7 +13,6 @@ gold = f"{catalog}.{gold_schema}"
 spark.sql(f"USE CATALOG {catalog}")
 spark.sql(f"CREATE SCHEMA IF NOT EXISTS {gold_schema}")
 
-# Silver columns come from CSV files, so cast them explicitly. Duplicated orders are dropped.
 orders = (
     spark.table(silver_table)
     .select(
@@ -31,13 +26,9 @@ orders = (
 )
 
 # COMMAND ----------
-# MAGIC %md
-# MAGIC ## Dimensions
 
 # COMMAND ----------
 
-# dim_customer: one row per customer. Segment is derived from total spend:
-# top 20% of customers by revenue are 'premium', the rest are 'standard'.
 spend = orders.groupBy("customer").agg(F.sum("amount").alias("total_spend"))
 dim_customer = (
     spend
@@ -48,7 +39,6 @@ dim_customer = (
 )
 dim_customer.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(f"{gold}.dim_customer")
 
-# dim_date: one row per calendar day covered by the orders
 b = orders.select(F.min(F.to_date("order_ts")).alias("d0"), F.max(F.to_date("order_ts")).alias("d1")).first()
 dim_date = (
     spark.sql(f"SELECT explode(sequence(to_date('{b.d0}'), to_date('{b.d1}'), interval 1 day)) AS date")
@@ -146,7 +136,7 @@ display(spark.sql(f"""
     FROM {gold}.fact_orders f
     LEFT JOIN {gold}.dim_date     d ON f.date_key     = d.date_key
     LEFT JOIN {gold}.dim_customer c ON f.customer_key = c.customer_key
-"""))   # no_date and no_customer must be 0
+"""))
 
 display(spark.sql(f"""
     SELECT segment, count(*) AS orders, round(sum(amount), 2) AS revenue
