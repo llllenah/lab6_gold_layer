@@ -1,13 +1,17 @@
+# Databricks notebook source
+# Governance on the gold layer: object permissions, Row-Level Security (row filter on
+# fact_orders) and Column-Level Security (column mask on dim_customer.customer_name).
+
 dbutils.widgets.text("catalog", "dbr_dev_ua5816bd")
 dbutils.widgets.text("gold_schema", "lena066636_gold")
-dbutils.widgets.text("analyst_principal", "account users")
+dbutils.widgets.text("analyst_principal", "account users")   # group or user that gets read access
 
 catalog = dbutils.widgets.get("catalog")
 gold = f"{catalog}.{dbutils.widgets.get('gold_schema')}"
 analyst = dbutils.widgets.get("analyst_principal")
 
 spark.sql(f"USE CATALOG {catalog}")
-tables = ["dim_customer", "dim_date", "fact_orders", "agg_daily_sales", "agg_hourly_sales", "agg_customer_sales"]
+tables = ["dim_customer", "dim_date", "dim_time", "fact_orders", "agg_daily_sales", "agg_hourly_sales", "agg_customer_sales"]
 
 # COMMAND ----------
 # MAGIC %md

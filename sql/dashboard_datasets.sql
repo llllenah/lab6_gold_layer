@@ -9,10 +9,13 @@ JOIN dbr_dev_ua5816bd.lena066636_gold.dim_customer c ON f.customer_key = c.custo
 -- counters on this dataset: SUM(amount) = revenue, COUNT(order_id) = orders, AVG(amount) = average order value
 
 -- 2) revenue_by_hour
-SELECT date_trunc('hour', f.order_ts) AS hour, f.segment,
+SELECT timestampadd(HOUR, t.hour_of_day, CAST(d.date AS TIMESTAMP)) AS hour,
+       t.day_part, f.segment,
        count(*) AS orders, round(sum(f.amount), 2) AS revenue
 FROM dbr_dev_ua5816bd.lena066636_gold.fact_orders f
-GROUP BY 1, 2;
+JOIN dbr_dev_ua5816bd.lena066636_gold.dim_date d ON f.date_key = d.date_key
+JOIN dbr_dev_ua5816bd.lena066636_gold.dim_time t ON f.time_key = t.time_key
+GROUP BY 1, 2, 3;
 
 -- 3) top_customers
 SELECT c.customer_name, g.segment, g.orders, g.revenue, g.avg_order_value
@@ -36,3 +39,11 @@ SELECT d.date, f.segment,
 FROM dbr_dev_ua5816bd.lena066636_gold.fact_orders f
 JOIN dbr_dev_ua5816bd.lena066636_gold.dim_date d ON f.date_key = d.date_key
 GROUP BY 1, 2, 3;
+
+-- 6) revenue_by_day_part
+SELECT d.date, t.day_part, f.segment, count(*) AS orders, round(sum(f.amount), 2) AS revenue
+FROM dbr_dev_ua5816bd.lena066636_gold.fact_orders f
+JOIN dbr_dev_ua5816bd.lena066636_gold.dim_date d ON f.date_key = d.date_key
+JOIN dbr_dev_ua5816bd.lena066636_gold.dim_time t ON f.time_key = t.time_key
+GROUP BY d.date, t.day_part, f.segment;
+-- bar chart: day_part by revenue (night, morning, afternoon, evening)
