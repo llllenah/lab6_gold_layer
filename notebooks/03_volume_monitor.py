@@ -1,3 +1,5 @@
+# Databricks notebook source
+
 dbutils.widgets.text("catalog", "dbr_dev_ua5816bd")
 dbutils.widgets.text("gold_schema", "lena066636_gold")
 dbutils.widgets.dropdown("mode", "log_real", ["log_real", "simulate_baseline", "simulate_drop"])
@@ -29,7 +31,6 @@ if mode == "log_real":
     spark.sql(f"INSERT INTO {gold}.pipeline_volume_log VALUES (current_timestamp(), 'fact_orders', {total}, {total - last_total()}, 'real')")
 
 elif mode == "simulate_baseline":
-    # six normal loads of about 1000 new orders each (simulated, marked in the scenario column)
     for i in range(6):
         spark.sql(f"""
             INSERT INTO {gold}.pipeline_volume_log
@@ -37,15 +38,9 @@ elif mode == "simulate_baseline":
         """)
 
 elif mode == "simulate_drop":
-    # the next load brings almost nothing: volume drop
     spark.sql(f"""
         INSERT INTO {gold}.pipeline_volume_log
         VALUES (current_timestamp(), 'fact_orders', 16005, 5, 'simulated_drop')
     """)
 
 display(spark.sql(f"SELECT * FROM {gold}.pipeline_volume_log WHERE table_name = 'fact_orders' ORDER BY run_ts DESC LIMIT 10"))
-
-# COMMAND ----------
-# MAGIC %md
-# MAGIC Alert query: `sql/alert_volume_drop.sql`. It returns `volume_drop = 1` when the latest load
-# MAGIC has less than 50% of the average of the five loads before it.

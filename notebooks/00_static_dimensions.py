@@ -1,6 +1,4 @@
 # Databricks notebook source
-# Static dimensions: dim_date and dim_time. They do not depend on the orders data,
-# so they are loaded once for a long period (several years ahead) and reused by every run.
 
 from pyspark.sql import functions as F
 
@@ -23,7 +21,6 @@ spark.sql(f"CREATE SCHEMA IF NOT EXISTS {gold_schema}")
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ## dim_date
-# MAGIC One row per calendar day from January 1 of `start_year` to December 31 of `end_year`.
 
 # COMMAND ----------
 
@@ -51,8 +48,6 @@ else:
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ## dim_time
-# MAGIC One row per hour of the day (0-23) with a label and a day part.
-# MAGIC The fact table stores only `time_key`, not the exact order timestamp.
 
 # COMMAND ----------
 

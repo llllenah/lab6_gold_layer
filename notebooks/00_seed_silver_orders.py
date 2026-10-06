@@ -1,7 +1,4 @@
 # Databricks notebook source
-# Optional: creates a sample silver orders table. Use it in a workspace where the previous
-# labs were not run (for example a trial workspace). The data mimics the output of the
-# earlier labs: 1000 orders, 50 customers, one order per minute.
 
 import random
 from datetime import datetime, timedelta

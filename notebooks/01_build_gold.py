@@ -1,7 +1,4 @@
 # Databricks notebook source
-# Gold layer: customer dimension, fact table and aggregations built on top of the silver
-# orders table from the previous labs. dim_date and dim_time are loaded once by
-# 00_static_dimensions, so run that notebook first. Every table here is rebuilt from silver.
 
 from pyspark.sql import functions as F, Window
 
@@ -18,7 +15,6 @@ gold = f"{catalog}.{gold_schema}"
 spark.sql(f"USE CATALOG {catalog}")
 spark.sql(f"CREATE SCHEMA IF NOT EXISTS {gold_schema}")
 
-# Silver columns come from CSV files, so cast them explicitly. Duplicated orders are dropped.
 orders = (
     spark.table(silver_table)
     .select(
@@ -37,8 +33,6 @@ orders = (
 
 # COMMAND ----------
 
-# dim_customer: one row per customer. Segment is derived from total spend:
-# top 20% of customers by revenue are 'premium', the rest are 'standard'.
 spend = orders.groupBy("customer").agg(F.sum("amount").alias("total_spend"))
 dim_customer = (
     spend
@@ -52,9 +46,6 @@ dim_customer.write.mode("overwrite").option("overwriteSchema", "true").saveAsTab
 # COMMAND ----------
 # MAGIC %md
 # MAGIC ## Fact table
-# MAGIC Grain: one row per order. The order time is stored as `date_key` and `time_key` (hour of
-# MAGIC the day), not as an exact timestamp. `segment` is kept next to `customer_key`,
-# MAGIC so the row-level security filter does not need a join.
 
 # COMMAND ----------
 
@@ -132,7 +123,7 @@ display(spark.sql(f"""
     LEFT JOIN {gold}.dim_date     d ON f.date_key     = d.date_key
     LEFT JOIN {gold}.dim_time     t ON f.time_key     = t.time_key
     LEFT JOIN {gold}.dim_customer c ON f.customer_key = c.customer_key
-"""))   # no_date, no_time and no_customer must be 0
+"""))
 
 display(spark.sql(f"""
     SELECT segment, count(*) AS orders, round(sum(amount), 2) AS revenue
